@@ -1,0 +1,281 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Telegram Translator</title>
+  <style>
+    /* Grundlayout */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: sans-serif; }
+    body { display: grid; grid-template-rows: auto 1fr; }
+
+    header {
+      padding: 0.5em 1em;
+      background: #2f3136;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 1em;
+    }
+    header h1 { font-size: 1.2em; }
+
+    header label {
+      font-size: 0.9em;
+    }
+    header select {
+      margin-left: 0.3em;
+      padding: 0.2em;
+    }
+
+    /* Zwei-Spalten-Layout */
+    .container {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      height: calc(100% - 3em);
+    }
+    #chat-list {
+      border-right: 1px solid #ccc;
+      overflow-y: auto;
+      background: #f5f5f5;
+    }
+    .chat-entry {
+      padding: 0.8em;
+      cursor: pointer;
+      border-bottom: 1px solid #ddd;
+    }
+    .chat-entry:hover { background: #e0e0e0; }
+
+    #chat-window {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    #messages {
+      flex: 1;
+      padding: 1em;
+      overflow-y: auto;
+      background: #fafafa;
+    }
+    .msg {
+      margin-bottom: 0.6em;
+      padding: 0.6em;
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    footer {
+      display: flex;
+      padding: 0.5em;
+      border-top: 1px solid #ccc;
+      background: #eee;
+    }
+    #msg-input {
+      flex: 1;
+      padding: 0.6em;
+      margin-right: 0.5em;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+    }
+    #send-btn {
+      padding: 0.6em 1em;
+      border: none;
+      background: #4CAF50;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #send-btn:disabled { background: #888; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Telegram Translator</h1>
+    <label>
+      Von:
+      <select id="src-lang">
+        <option value="ru">Russisch</option>
+        <option value="pl">Polnisch</option>
+        <option value="tr">Türkisch</option>
+      </select>
+    </label>
+    <label>
+      Nach:
+      <select id="tgt-lang">
+        <option value="de">Deutsch</option>
+        <option value="en">Englisch</option>
+      </select>
+    </label>
+  </header>
+  <div class="container">
+    <aside id="chat-list"></aside>
+    <section id="chat-window">
+      <div id="messages"></div>
+      <footer>
+        <input id="msg-input" placeholder="Nachricht…" />
+        <button id="send-btn" disabled>Senden</button>
+      </footer>
+    </section>
+  </div>
+
+  <!-- TDWeb (Telegram TDLib for Browser) -->
+  <script src="https://unpkg.com/@tdlib/tdweb/dist/tdweb.js"></script>
+  <script type="module">
+    import { TdClient } from 'https://unpkg.com/@tdlib/tdweb/dist/tdweb.esm.js';
+
+    // 1) Telegram-Client initialisieren
+    const client = new TdClient({
+      apiId: /* DEINE_API_ID_HIER als Number */,
+      apiHash: 'DEIN_API_HASH_HIER',
+      filesDirectory: 'tdlib-files'
+    });
+
+    let currentChat = null;
+
+    // 2) Inline-Worker-Code für Übersetzungen (LibreTranslate)
+    const workerCode = `
+      self.onmessage = async e => {
+        const { texts, source, target } = e.data;
+        // Einfacher IndexedDB-Cache:
+        const dbReq = indexedDB.open('transCache', 1);
+        dbReq.onupgradeneeded = () => {
+          dbReq.result.createObjectStore('cache', { keyPath: 'key' });
+        };
+        dbReq.onsuccess = async () => {
+          const db = dbReq.result;
+          const tx = db.transaction('cache', 'readwrite');
+          const store = tx.objectStore('cache');
+          // Prüfe vorab den Cache
+          const out = [];
+          const toFetch = [];
+          texts.forEach(txt => {
+            const key = source+'|'+target+'|'+txt;
+            store.get(key).onsuccess = function(evt) {
+              const rec = evt.target.result;
+              if (rec) out.push({key, text: rec.text});
+              else toFetch.push(txt);
+            };
+          });
+          tx.oncomplete = async () => {
+            // Wenn Bedarf, dann Batch-Übersetzung
+            if (toFetch.length) {
+              const resp = await fetch('https://libretranslate.com/translate', {
+                method:'POST',
+                headers:{ 'Content-Type':'application/json' },
+                body: JSON.stringify({
+                  q: toFetch,
+                  source,
+                  target,
+                  format:'text'
+                })
+              });
+              const json = await resp.json();
+              // Annahme: json.translatedTexts = [...]
+              json.translatedTexts.forEach((t,i) => {
+                const key = source+'|'+target+'|'+toFetch[i];
+                out.push({key, text:t});
+                store.put({key, text:t});
+              });
+            }
+            // Sortiere nach Eingabe-Reihenfolge
+            const ordered = texts.map(txt => {
+              const entry = out.find(o=>o.key.endsWith('|'+txt));
+              return entry ? entry.text : '[Übersetzung fehlgeschlagen]';
+            });
+            self.postMessage(ordered);
+          };
+        };
+      };
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const workerURL = URL.createObjectURL(blob);
+
+    // 3) Autorisierung (Telefonnummer & Code)
+    client.send({ _: 'getAuthorizationState' });
+    client.on('update', u => {
+      if (u._==='updateAuthorizationState') {
+        const st = u.authorization_state._;
+        if (st==='authorizationStateWaitPhoneNumber') {
+          const phone = prompt('Telefonnummer inkl. Ländercode (+49…):');
+          client.send({ _: 'setAuthenticationPhoneNumber', phone_number: phone });
+        }
+        else if (st==='authorizationStateWaitCode') {
+          const code = prompt('Bestätigungscode aus Telegram:');
+          client.send({ _: 'checkAuthenticationCode', code });
+        }
+        else if (st==='authorizationStateReady') {
+          console.log('✅ Eingeloggt!');
+          loadChats();
+        }
+      }
+    });
+
+    // 4) Chats laden
+    async function loadChats() {
+      const { chat_ids } = await client.send({ _: 'getChats', limit: 100 });
+      const list = document.getElementById('chat-list');
+      list.innerHTML = '';
+      for (let id of chat_ids) {
+        const info = await client.send({ _: 'getChat', chat_id: id });
+        const div = document.createElement('div');
+        div.className = 'chat-entry';
+        div.textContent = info.title || \`\${info.first_name||''} \${info.last_name||''}\`;
+        div.onclick = () => openChat(id);
+        list.appendChild(div);
+      }
+    }
+
+    // 5) Chat öffnen & Nachrichten holen + übersetzen
+    async function openChat(chat_id) {
+      currentChat = chat_id;
+      document.getElementById('send-btn').disabled = false;
+      const msgsDiv = document.getElementById('messages');
+      msgsDiv.innerHTML = '';
+
+      const { messages } = await client.send({
+        _: 'getChatHistory',
+        chat_id,
+        limit: 100
+      });
+
+      // Rohtexte extrahieren und in Reihenfolge bringen
+      const raw = messages
+        .filter(m=>m.content?._==='messageText')
+        .map(m=>m.content.text.text)
+        .reverse();
+
+      // Worker starten
+      const worker = new Worker(workerURL);
+      worker.postMessage({
+        texts: raw,
+        source: document.getElementById('src-lang').value,
+        target: document.getElementById('tgt-lang').value
+      });
+      worker.onmessage = e => {
+        e.data.forEach(txt => {
+          const div = document.createElement('div');
+          div.className = 'msg';
+          div.textContent = txt;
+          msgsDiv.appendChild(div);
+        });
+        worker.terminate();
+      };
+    }
+
+    // 6) Neue Nachricht senden
+    document.getElementById('send-btn').onclick = async () => {
+      const txt = document.getElementById('msg-input').value.trim();
+      if (!txt || !currentChat) return;
+      document.getElementById('msg-input').value = '';
+      await client.send({
+        _: 'sendMessage',
+        chat_id: currentChat,
+        input_message_content: {
+          _: 'inputMessageText',
+          text: { _: 'formattedText', text: txt }
+        }
+      });
+    };
+  </script>
+</body>
+</html>
