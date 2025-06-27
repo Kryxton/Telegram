@@ -174,12 +174,13 @@
     function hideLogin() { document.getElementById('login-overlay').style.visibility = 'hidden'; }
 
     // 3) Client initialisieren
-    const TdClient = window.TdWeb.TdClient;
-    const client = new TdClient({
-      apiId: 23435827,
-      apiHash: 'cc437a2498bf526fc1244b2b5708e0d4',
-      filesDirectory: 'tdlib-files'
-    });
+    window.TdWeb.workerPath = 'https://unpkg.com/@tdlib/tdweb/dist/tdworker.js';
+const TdClient = window.TdWeb.TdClient;
+const client = new TdClient({
+  apiId: 23435827,
+  apiHash: 'cc437a2498bf526fc1244b2b5708e0d4',
+  filesDirectory: 'tdlib-files'
+});
     let currentChat = null;
 
     // 4) Auth-Flow
