@@ -2,79 +2,103 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Telegram Translator</title>
+  <title>Telegram Translator Debug</title>
   <style>
-    /* ------------------------------
-       Grund-Look & Login-Overlay
-       ------------------------------ */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; font-family: sans-serif; }
-    body { display: grid; grid-template-rows: auto 1fr; }
+    body { display: grid; grid-template-rows: auto 1fr auto; }
 
+    /* HEADER */
     header {
-      background: #2f3136; color: #fff;
-      padding: 0.5em 1em; display: flex; align-items:center; gap:1em;
+      background: #2f3136;
+      color: #fff;
+      padding: 0.5em 1em;
+      display: flex;
+      align-items: center;
+      gap: 1em;
     }
-    header h1 { font-size: 1.2em; }
-    header label { font-size: 0.9em; }
     header select { margin-left: 0.3em; padding: 0.2em; }
 
+    /* Status-Bar */
+    #status {
+      background: #444;
+      color: #fff;
+      padding: 0.3em 0.8em;
+      font-size: 0.9em;
+    }
+
+    /* LAYOUT */
     .container {
-      display: grid; grid-template-columns: 250px 1fr;
-      height: calc(100% - 3em);
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      height: calc(100% - 3.2em);
     }
     #chat-list {
-      background: #f5f5f5; border-right: 1px solid #ccc;
+      border-right: 1px solid #ccc;
       overflow-y: auto;
+      background: #f5f5f5;
     }
     .chat-entry {
-      padding: 0.8em; border-bottom: 1px solid #ddd;
+      padding: 0.8em;
+      border-bottom: 1px solid #ddd;
       cursor: pointer;
     }
     .chat-entry:hover { background: #e0e0e0; }
 
     #chat-window {
-      display: flex; flex-direction: column; height:100%;
+      display: flex;
+      flex-direction: column;
     }
     #messages {
-      flex: 1; padding: 1em; overflow-y: auto; background: #fafafa;
+      flex: 1;
+      padding: 1em;
+      overflow-y: auto;
+      background: #fafafa;
     }
     .msg {
-      margin-bottom: 0.6em; padding: 0.6em;
-      background: #fff; border-radius: 4px;
+      margin-bottom: 0.6em;
+      padding: 0.6em;
+      background: #fff;
+      border-radius: 4px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     footer {
-      display: flex; padding: 0.5em;
-      border-top: 1px solid #ccc; background: #eee;
+      display: flex;
+      padding: 0.5em;
+      border-top: 1px solid #ccc;
+      background: #eee;
     }
     #msg-input {
-      flex: 1; padding: 0.6em; margin-right: 0.5em;
-      border: 1px solid #bbb; border-radius: 4px;
+      flex: 1;
+      padding: 0.6em;
+      margin-right: 0.5em;
+      border: 1px solid #bbb;
+      border-radius: 4px;
     }
     #send-btn {
-      padding: 0.6em 1em; border:none;
-      background: #4CAF50; color:white;
-      border-radius:4px; cursor:pointer;
+      padding: 0.6em 1em;
+      border: none;
+      background: #4CAF50;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
     }
-    #send-btn:disabled { background: #888; cursor:not-allowed; }
+    #send-btn:disabled { background: #888; cursor: not-allowed; }
 
-    /* Login-Overlay */
+    /* LOGIN-OVERLAY */
     #login-overlay {
-      position: fixed; inset: 0;
+      position: fixed; inset:0;
       background: rgba(0,0,0,0.5);
-      display: flex; align-items: center; justify-content: center;
-      visibility: hidden;
-      z-index: 1000;
+      display: flex; align-items:center; justify-content:center;
+      visibility: hidden; z-index:1000;
     }
     #login-box {
-      background: white; padding:1.5em;
-      border-radius: 6px; width: 300px;
+      background:white; padding:1.5em; border-radius:6px; width:300px;
     }
     #login-box h2 { margin-bottom:0.5em; font-size:1.2em; }
     #login-box div { margin-top:0.8em; }
     #login-box input {
-      width: 100%; padding:0.5em; margin-top:0.3em;
+      width:100%; padding:0.5em; margin-top:0.3em;
       border:1px solid #ccc; border-radius:4px;
     }
     #login-box button {
@@ -86,7 +110,6 @@
 </head>
 <body>
 
-  <!-- HEADER mit Sprachauswahl -->
   <header>
     <h1>Telegram Translator</h1>
     <label>
@@ -106,7 +129,8 @@
     </label>
   </header>
 
-  <!-- CONTAINER für Sidebar & Chat -->
+  <div id="status">Status: &lt;noch nicht gestartet&gt;</div>
+
   <div class="container">
     <aside id="chat-list"></aside>
     <section id="chat-window">
@@ -118,10 +142,10 @@
     </section>
   </div>
 
-  <!-- LOGIN-OVERLAY -->
+  <!-- Login Overlay -->
   <div id="login-overlay">
     <div id="login-box">
-      <h2>Telegram Login</h2>
+      <h2>Login zu Telegram</h2>
       <div id="phone-step">
         <label>Telefonnummer (inkl. +):</label>
         <input id="phone-input" placeholder="+49..." />
@@ -135,14 +159,22 @@
     </div>
   </div>
 
-  <!-- TDWeb (Telegram TDLib für Browser) -->
+  <!-- TDWeb UMD -->
   <script src="https://unpkg.com/@tdlib/tdweb/dist/tdweb.js"></script>
+  <script>
+    // 1) Status-Helfer
+    const statusEl = document.getElementById('status');
+    function setStatus(text) {
+      console.log('Status:', text);
+      statusEl.textContent = 'Status: ' + text;
+    }
 
-  <!-- Haupt-Logic als ES-Modul -->
-  <script type="module">
-    import { TdClient } from 'https://unpkg.com/@tdlib/tdweb/dist/tdweb.esm.js';
+    // 2) Login-Overlay
+    function showLogin() { document.getElementById('login-overlay').style.visibility = 'visible'; }
+    function hideLogin() { document.getElementById('login-overlay').style.visibility = 'hidden'; }
 
-    // ==== 1) Telegram-Client initialisieren ====
+    // 3) Client initialisieren
+    const TdClient = window.TdWeb.TdClient;
     const client = new TdClient({
       apiId: 23435827,
       apiHash: 'cc437a2498bf526fc1244b2b5708e0d4',
@@ -150,68 +182,11 @@
     });
     let currentChat = null;
 
-    // ==== 2) Login-Overlay Helfer ====
-    function showLogin() {
-      document.getElementById('login-overlay').style.visibility = 'visible';
-    }
-    function hideLogin() {
-      document.getElementById('login-overlay').style.visibility = 'hidden';
-    }
-
-    // ==== 3) Inline Web-Worker (Batch + IndexedDB-Cache) ====
-    const workerCode = `
-      self.onmessage = async e => {
-        const { texts, source, target } = e.data;
-        // IndexedDB öffnen
-        const req = indexedDB.open('transCache', 1);
-        req.onupgradeneeded = () => req.result.createObjectStore('cache', { keyPath:'key' });
-        req.onsuccess = async () => {
-          const db = req.result;
-          const tx = db.transaction('cache','readwrite');
-          const store = tx.objectStore('cache');
-          const out = [], toFetch = [];
-          // Cache prüfen
-          for (let txt of texts) {
-            const key = source+'|'+target+'|'+txt;
-            // get ist asynchron → Wrapper-Promise
-            const rec = await new Promise(res =>
-              store.get(key).onsuccess = ev => res(ev.target.result)
-            );
-            if (rec) out.push({key,text:rec.text});
-            else toFetch.push(txt);
-          }
-          tx.oncomplete = async () => {
-            if (toFetch.length) {
-              const resp = await fetch('https://libretranslate.com/translate', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({ q: toFetch, source, target, format:'text' })
-              });
-              const json = await resp.json();
-              // Annahme: json.translatedTexts = [...]
-              for (let i=0;i<json.translatedTexts.length;i++){
-                const t = json.translatedTexts[i];
-                const key = source+'|'+target+'|'+toFetch[i];
-                out.push({key,text:t});
-                store.put({key,text:t});
-              }
-            }
-            // In ursprünglicher Reihenfolge sortieren
-            const ordered = texts.map(txt => {
-              const e = out.find(o => o.key.endsWith('|'+txt));
-              return e? e.text : '[Übersetzung fehlgeschlagen]';
-            });
-            self.postMessage(ordered);
-          };
-        };
-      };
-    `;
-    const workerURL = URL.createObjectURL(new Blob([workerCode],{type:'application/javascript'}));
-
-    // ==== 4) Auth-Flow starten ====
-    client.send({ _: 'getAuthorizationState' });
+    // 4) Auth-Flow
     client.on('update', u => {
       if (u._ === 'updateAuthorizationState') {
         const st = u.authorization_state._;
+        setStatus(st);
         if (st === 'authorizationStateWaitPhoneNumber') {
           showLogin();
           document.getElementById('phone-step').style.display = 'block';
@@ -227,67 +202,80 @@
         }
       }
     });
+    client.send({ _: 'getAuthorizationState' });
+    setStatus('Anfrage: getAuthorizationState');
 
-    // ==== 5) Login-Overlay Event-Handler ====
+    // 5) Login-Buttons
     document.getElementById('phone-btn').onclick = () => {
       const phone = document.getElementById('phone-input').value.trim();
-      if (phone) client.send({ _: 'setAuthenticationPhoneNumber', phone_number: phone });
+      if (!phone) return alert('Bitte Nummer eingeben');
+      setStatus('Sende Telefonnummer');
+      client.send({ _: 'setAuthenticationPhoneNumber', phone_number: phone });
     };
     document.getElementById('code-btn').onclick = () => {
       const code = document.getElementById('code-input').value.trim();
-      if (code) client.send({ _: 'checkAuthenticationCode', code });
+      if (!code) return alert('Bitte Code eingeben');
+      setStatus('Sende Bestätigungscode');
+      client.send({ _: 'checkAuthenticationCode', code });
     };
 
-    // ==== 6) Chats laden ====
+    // 6) Chats laden
     async function loadChats() {
+      setStatus('Lade Chats…');
       const { chat_ids } = await client.send({ _: 'getChats', limit: 100 });
+      setStatus(`Chats geladen: ${chat_ids.length}`);
       const list = document.getElementById('chat-list');
       list.innerHTML = '';
       for (let id of chat_ids) {
         const info = await client.send({ _: 'getChat', chat_id: id });
         const div = document.createElement('div');
         div.className = 'chat-entry';
-        div.textContent = info.title || \`\${info.first_name||''} \${info.last_name||''}\`;
+        div.textContent = info.title || `${info.first_name||''} ${info.last_name||''}`;
         div.onclick = () => openChat(id);
         list.appendChild(div);
       }
     }
 
-    // ==== 7) Chat öffnen & übersetzen ====
+    // 7) Chat öffnen & übersetzen
     async function openChat(chat_id) {
       currentChat = chat_id;
       document.getElementById('send-btn').disabled = false;
       const msgsDiv = document.getElementById('messages');
       msgsDiv.innerHTML = '';
-
-      // Rohtexte aus Telegram holen
+      setStatus(`Lade Nachrichten für Chat ${chat_id}`);
       const { messages } = await client.send({
-        _: 'getChatHistory', chat_id, limit: 100
+        _: 'getChatHistory', chat_id, limit: 50
       });
-      const raw = messages
-        .filter(m=>m.content?._==='messageText')
-        .map(m=>m.content.text.text)
-        .reverse();
+      setStatus(`Nachrichten empfangen: ${messages.length}`);
 
-      // Übersetzungs-Worker starten
-      const worker = new Worker(workerURL);
-      worker.postMessage({
-        texts: raw,
-        source: document.getElementById('src-lang').value,
-        target: document.getElementById('tgt-lang').value
-      });
-      worker.onmessage = e => {
-        for (let txt of e.data) {
+      // einfache Übersetzung ohne Worker & Cache:
+      for (let m of messages.reverse()) {
+        if (m.content?._ === 'messageText') {
+          const txt = m.content.text.text;
+          const to = document.getElementById('tgt-lang').value;
+          const from = document.getElementById('src-lang').value;
+          let trans = '[Übersetzung fehlgeschlagen]';
+          try {
+            const resp = await fetch('https://libretranslate.com/translate', {
+              method:'POST',
+              headers:{ 'Content-Type':'application/json' },
+              body: JSON.stringify({ q: txt, source: from, target: to, format:'text' })
+            });
+            const j = await resp.json();
+            trans = j.translatedText || trans;
+          } catch(e) {
+            console.error(e);
+          }
           const d = document.createElement('div');
           d.className = 'msg';
-          d.textContent = txt;
+          d.textContent = trans;
           msgsDiv.appendChild(d);
         }
-        worker.terminate();
-      };
+      }
+      setStatus('Fertig mit Übersetzung');
     }
 
-    // ==== 8) Nachricht senden ====
+    // 8) Nachricht senden
     document.getElementById('send-btn').onclick = async () => {
       const txt = document.getElementById('msg-input').value.trim();
       if (!txt || !currentChat) return;
